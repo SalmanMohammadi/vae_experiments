@@ -1,0 +1,10 @@
+*.sublime*
+*.swp
+
+*.png
+tmp*
+
+__pycache__
+
+*.tfevents*
+
