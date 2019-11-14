@@ -1,0 +1,14 @@
+setuptools
+wheel
+tensorflow-gpu
+keras
+numpy
+opencv-python
+pandas
+matplotlib
+torch
+torchvision
+tensorboard
+scikit-learn
+scikit-image
+scipy
