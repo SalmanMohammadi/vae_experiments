@@ -76,7 +76,7 @@ class RotDSpritesVAE(DSpritesVAE):
         return "RotDSpritesVAE"
 
     def __init__(self, z_size=4, classifier_size=1, include_loss=True, *args, **kwargs):
-        super(RotDSpritesVAE, self).__init__()
+        super(RotDSpritesVAE, self).__init__(z_size=z_size)
         assert classifier_size <= self.z_size and classifier_size > 0
 
         self.include_loss = include_loss
@@ -116,7 +116,7 @@ def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_inter
     model.train()
     train_loss = 0
     metrics_mean = []
-    data_len = len(dataset) * dataset.batch_size
+    dataset_len = len(dataset) * dataset.batch_size
     for batch_id, data in enumerate(dataset):
         optimizer.zero_grad()
         loss, metrics = model.batch_forward(data)
@@ -133,12 +133,11 @@ def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_inter
             metrics = [x.item()/data_len for x in metrics]
             print(metrics)
 
-
     metrics_mean = np.array(metrics_mean)
-    metrics_mean = np.sum(metrics_mean, axis=0)/data_len
+    metrics_mean = np.sum(metrics_mean, axis=0)/dataset_len
 
     if writer:
-        writer.add_scalar('train/loss', train_loss /data_len, epoch)
+        writer.add_scalar('train/loss', train_loss /dataset_len, epoch)
         for label, metric in zip(['r_loss', 'kl_loss', 'mse'], metrics_mean):
             writer.add_scalar('train/'+label, metric, epoch)
         if len(metrics_mean) > 2:
@@ -147,7 +146,7 @@ def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_inter
             writer.flush()
     if verbose:
         print('====> Epoch: {} Average loss: {:.4f}'.format(
-          epoch, train_loss / data_len))
+          epoch, train_loss / dataset_len))
         
 
 def test(model, dataset, verbose=True):
@@ -171,7 +170,7 @@ def test(model, dataset, verbose=True):
         print("Eval: ", test_loss, metrics_mean)
     return test_loss, metrics_mean
 
-def get_dsprites(config, test_split=0.2, shuffle=True):
+def get_dsprites(config, test_split=0.1, shuffle=True):
     """
     Returns train and test DSprites dataset.
     """
@@ -234,6 +233,6 @@ if __name__ == "__main__":
     writer = SummaryWriter(log_dir='./tmp/rot')
     train_data, test_data, model, opt = setup(config_)
     print(len(train_data)*512, len(test_data)*512)
-    # for epoch in range(2):
-    #     train(model, train_data, epoch, opt, writer=writer)
+    for epoch in range(10):
+        train(model, train_data, epoch, opt, writer=None, verbose=True)
     print(test(model, test_data, verbose=False))

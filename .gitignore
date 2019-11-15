@@ -8,3 +8,5 @@ __pycache__
 
 *.tfevents*
 venv
+*.vscode
+vscode

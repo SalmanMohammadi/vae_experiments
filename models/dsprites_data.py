@@ -58,7 +58,6 @@ class DSprites(Dataset):
 
         assert len(latents_counts) == len(latents_sizes)
         assert all([x <= y for x, y in zip(latents_counts, latents_sizes)])
-
         keys_ = ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
         latents_possible_values = [self.metadata['latents_possible_values'][x] for x in keys_]
 
@@ -91,7 +90,8 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.subplots_adjust(top=0.9, hspace=0.55)
     for idx, (x, y) in enumerate(data):
-        np.ravel(axes)[idx].imshow(x.squeeze(), cmap="Greys")
+        x = x.view(-1, 64, 64).squeeze()
+        np.ravel(axes)[idx].imshow(x, cmap="Greys")
     plt.show()
 
 

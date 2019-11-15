@@ -29,6 +29,7 @@ def linear_regression(x, y, n_splits=5, use_sklearn=True):
 def softmax_regression(x, y, num_classes=3):
     y = np.array(y, dtype=int) - 1
     labels = np.zeros((len(y), len(np.unique(y))))
+    print(np.unique(y))
     labels[np.arange(len(y)), y] = 1
 
     kf = KFold(n_splits=5, shuffle=True)
@@ -43,7 +44,7 @@ def softmax_regression(x, y, num_classes=3):
                         input_shape=(x.shape[1],)))
         model.compile(optimizer='sgd', loss='categorical_crossentropy',
                       metrics=['accuracy'])
-        model.fit(x_train, y_train, epochs=4)#, validation_split=0.2)
+        model.fit(x_train, y_train, epochs=4, verbose=0)#, validation_split=0.2)
 
         #evaluate
         loss, acc = model.evaluate(x_test, y_test, verbose=0)
@@ -63,7 +64,7 @@ def sigmoid_regression(x, y, num_classes=3):
         model.add(Dense(1, activation='sigmoid',
                         input_shape=(x.shape[1],)))
         model.compile(optimizer='sgd', loss='mean_squared_error')
-        model.fit(x_train, y_train, epochs=40, verbose=0)#, validation_split=0.2)
+        model.fit(x_train, y_train, epochs=1, verbose=1)#, validation_split=0.2)
 
         #evaluate
         loss = model.evaluate(x_test, y_test, verbose=0)
