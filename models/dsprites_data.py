@@ -21,14 +21,14 @@ class DSpritesRaw():
                                 np.array([1,])))
 
         train_indices, self.train_labels, test_indices, self.test_labels = self.train_test_latents(test_index, 
-                                                                                                    test_split)
-
-        self.train_indices, self.test_indices = self.latent_to_index(train_indices), self.latent_to_index(train_indices)
+                                                                                                  test_split)
+        
+        self.train_indices = self.latent_to_index(train_indices)
+        self.test_indices = self.latent_to_index(test_indices)
 
     def get_train_test_datasets(self):
         return (DSprites(self.train_indices, self.train_labels, self), 
                DSprites(self.test_indices, self.test_labels, self))
-
 
     def latent_to_index(self, latents):
         """
@@ -75,7 +75,7 @@ class DSpritesRaw():
 
         train_samples, train_labels = sample_latents(train_latents_sizes, train_latents, n_train_samples)
         test_samples, test_labels = sample_latents(test_latents_sizes, test_latents, n_test_samples)
-
+        
         return train_samples, train_labels, test_samples, test_labels
 
 
@@ -102,19 +102,20 @@ if __name__ == "__main__":
     raw_dataset = DSpritesRaw(test_index=3)
     train_data, test_data = raw_dataset.get_train_test_datasets()
 
+
     # dsprites = DSprites([-1, 1, 1, 9, 1, 1])
-    data = DataLoader(train_data, 1, shuffle=True)
+    data = DataLoader(train_data, 512, shuffle=True)
 
     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
     plt.tight_layout()
+    batch, y = next(iter(data))
+    batch = batch[:9]
     plt.subplots_adjust(top=0.9, hspace=0.55)
-    for idx, (x, y) in enumerate(data):
-        if idx > 8:
-            break
+    for idx, x in enumerate(batch):
         x = x.view((-1, 64, 64)).squeeze()
         np.ravel(axes)[idx].imshow(x, cmap="Greys")
     plt.show()
-
+    
 
     # DATA_PATH = "../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"
     # dataset_zip = np.load(DATA_PATH, allow_pickle=True, encoding='latin1')

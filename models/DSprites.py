@@ -170,7 +170,7 @@ def test(model, dataset, verbose=True):
         print("Eval: ", test_loss, metrics_mean)
     return test_loss, metrics_mean
 
-def get_dsprites(config, test_split=0., shuffle=True):
+def get_dsprites(config):
     """
     Returns train and test DSprites dataset.
     """
@@ -200,28 +200,40 @@ Config = collections.namedtuple(
 config_ = Config(
     # dataset
     dataset={
-        # latent_counts - ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
-        # out of          [ 1         3         6       40              32     32  ]
         'test_index': 3
     },
     #model
     model={
         'model': RotDSpritesVAE,
-        'epochs':25,
+        'epochs':20,
         'lr':0.001,
-        'batch_size':512,
+        'batch_size':256,
     },
     hparams={
-        'z_size': 8,
-        'classifier_size': 1,
+        'z_size': 10,
+        'classifier_size': 2,
         'include_loss': True
     }
 )
 
 if __name__ == "__main__":
-    writer = SummaryWriter(log_dir='./tmp/rot')
+    writer = SummaryWriter(log_dir='./tmp/rot/run2')
     train_data, test_data, model, opt = setup(config_)
-    print(len(train_data)*512, len(test_data)*512)
-    for epoch in range(10):
-        train(model, train_data, epoch, opt, writer=None, verbose=True)
+    for epoch in range(config_.model['epochs']):
+        train(model, train_data, epoch, opt, writer=writer, verbose=True)
     print(test(model, test_data, verbose=False))
+
+    # View some predicitions from the model
+
+    with torch.no_grad():
+        sample, _ = next(iter(test_data))
+        sample = sample[:9].to(DEVICE)
+        sample, *_ = model(sample)
+        sample = sample.cpu()
+        fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.9, hspace=0.55)
+        for idx, x in enumerate(sample):
+            x = x.view((-1, 64, 64)).squeeze()
+            np.ravel(axes)[idx].imshow(x, cmap="Greys")
+        plt.show()

@@ -29,7 +29,6 @@ def linear_regression(x, y, n_splits=5, use_sklearn=True):
 def softmax_regression(x, y, num_classes=3):
     y = np.array(y, dtype=int) - 1
     labels = np.zeros((len(y), len(np.unique(y))))
-    print(np.unique(y))
     labels[np.arange(len(y)), y] = 1
 
     kf = KFold(n_splits=5, shuffle=True)

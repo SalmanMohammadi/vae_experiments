@@ -121,7 +121,8 @@ def repeat_experiment(config_, num_repetitions):
     for exp_id in range(num_repetitions):
         _, _, regressions, _ = run_experiment(config_)
         regression_results = np.add(regression_results, regressions)
-    print("mean res", np.mean(regression_results))
+    print("mean res", regression_results/num_repetitions)
+    print("mean clasification", classification_results/num_repetitions)
 
 config_ = DSprites.Config(
     # dataset
@@ -136,7 +137,7 @@ config_ = DSprites.Config(
         'batch_size':512,
     },
     hparams={
-        'z_size': 8,
+        'z_size': 10,
         'classifier_size': 1,
         'include_loss': True
     }
