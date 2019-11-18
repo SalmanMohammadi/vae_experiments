@@ -5,7 +5,9 @@ import math
 from torch.utils.data import Dataset, DataLoader
 
 class DSpritesRaw():
-    def __init__(npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"):
+    def __init__(self, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz",
+        test_index=-1, test_split=0.1):
+
         dataset_zip = np.load(npz_path, allow_pickle=True, encoding='latin1')
         
         self.imgs = np.reshape(dataset_zip['imgs'], (-1, 4096))
@@ -17,6 +19,26 @@ class DSpritesRaw():
         # An array to convert latent indices to indices in imgs
         self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
                                 np.array([1,])))
+
+        train_indices, self.train_labels, test_indices, self.test_labels = self.train_test_latents(test_index, 
+                                                                                                    test_split)
+
+        self.train_indices, self.test_indices = self.latent_to_index(train_indices), self.latent_to_index(train_indices)
+
+    def get_train_test_datasets(self):
+        return (DSprites(self.train_indices, self.train_labels, self), 
+               DSprites(self.test_indices, self.test_labels, self))
+
+
+    def latent_to_index(self, latents):
+        """
+        latents - an array of shape (-1, 6) which indexes values of latents
+
+        returns the correnspoding indices in img[]
+        """
+        return np.dot(latents, self.latents_bases).astype(int)
+
+
     def train_test_latents(self, test_index=-1, test_split=0.1):    
         """
         Parameters
@@ -28,7 +50,9 @@ class DSpritesRaw():
         ----------
         train_latent_indexes, train_labels, test_latent_indexes, test_labels
         """
-        latents_sizes = metadata['latents_sizes']
+        latents_sizes = self.latents_sizes
+        keys_ = ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
+        latents_possible_values = [self.metadata['latents_possible_values'][x] for x in keys_]
 
         latents = np.random.permutation(latents_sizes[test_index])
         train_latents = latents[:int(len(latents) * (1 - test_split))]
@@ -56,55 +80,38 @@ class DSpritesRaw():
 
 
 class DSprites(Dataset):
-    def __init__(self, latent_indices, labels):
-        dataset_zip = np.load(npz_path, allow_pickle=True, encoding='latin1')
+    def __init__(self, x_indices, y, dataset):
         
-        self.imgs = np.reshape(dataset_zip['imgs'], (-1, 4096))
-        self.latents_values = dataset_zip['latents_values']
-        self.latents_classes = dataset_zip['latents_classes']
-        self.metadata = dataset_zip['metadata'][()]
-        self.latents_sizes = self.metadata['latents_sizes']
-
-        # An array to convert latent indices to indices in imgs
-        self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
-                                np.array([1,])))
-
-        if latents_counts == None:
-            latents_counts = [-1 for _ in self.latents_sizes]
-
-        x_indices, self.Y = self.get_latents(latents_counts)
-        self.X = self.latent_to_index(x_indices)
-
+        self.X = x_indices
+        self.Y = y
+        self.dataset = dataset
         # Normalize data
         self.Y[:, 3] /= 2 * math.pi
-
-    def latent_to_index(self, latents):
-        """
-        latents - an array of shape (-1, 6) which indexes values of latents
-
-        returns the correnspoding indices in img[]
-        """
-        return np.dot(latents, self.latents_bases).astype(int)
         
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
         
-        X_new = np.array(self.imgs[self.X[idx]], dtype=np.float32)
+        X_new = np.array(self.dataset.imgs[self.X[idx]], dtype=np.float32)
         Y_new = np.array(self.Y[idx])
 
         return (X_new, Y_new)
 
 if __name__ == "__main__":
-    dsprites = DSprites([-1, 1, 1, 9, 1, 1])
-    data = DataLoader(dsprites, 1, shuffle=True)
+    raw_dataset = DSpritesRaw(test_index=3)
+    train_data, test_data = raw_dataset.get_train_test_datasets()
+
+    # dsprites = DSprites([-1, 1, 1, 9, 1, 1])
+    data = DataLoader(train_data, 1, shuffle=True)
 
     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
     plt.tight_layout()
     plt.subplots_adjust(top=0.9, hspace=0.55)
     for idx, (x, y) in enumerate(data):
-        x = x.view(-1, 64, 64).squeeze()
+        if idx > 8:
+            break
+        x = x.view((-1, 64, 64)).squeeze()
         np.ravel(axes)[idx].imshow(x, cmap="Greys")
     plt.show()
 

@@ -174,22 +174,11 @@ def get_dsprites(config, test_split=0., shuffle=True):
     """
     Returns train and test DSprites dataset.
     """
-    dataset = dsprites.DSprites(**config.dataset)
+    dataset = dsprites.DSpritesRaw(**config.dataset)
+    train_data, test_data = dataset.get_train_test_datasets()
 
-    dataset_size= len(dataset)
-    indices = list(range(dataset_size))
-    split = int(np.floor(test_split * dataset_size))
-    if shuffle:
-        np.random.shuffle(indices)
-    train_indices, test_indices = indices[split:], indices[:split]
-
-    train_sampler = SubsetRandomSampler(train_indices)
-    test_sampler = SubsetRandomSampler(test_indices)
-
-    train_loader = DataLoader(dataset, batch_size=config.model['batch_size'], 
-                                            sampler=train_sampler)
-    test_loader = DataLoader(dataset, batch_size=config.model['batch_size'],
-                                            sampler=test_sampler)
+    train_loader = DataLoader(train_data, batch_size=config.model['batch_size'])
+    test_loader = DataLoader(test_data, batch_size=config.model['batch_size'])
 
     return train_loader, test_loader
 
@@ -213,7 +202,7 @@ config_ = Config(
     dataset={
         # latent_counts - ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
         # out of          [ 1         3         6       40              32     32  ]
-        'latents_counts': [-1, -1, -1, -1, -1, -1]
+        'test_index': 3
     },
     #model
     model={

@@ -126,9 +126,7 @@ def repeat_experiment(config_, num_repetitions):
 config_ = DSprites.Config(
     # dataset
     dataset={
-        # latent_counts - ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
-        # out of          [ 1         3         6       40              32     32  ]
-        'latents_counts': [-1, -1, -1, -1, -1, -1]
+        'test_index': 3
     },
     #model
     model={
