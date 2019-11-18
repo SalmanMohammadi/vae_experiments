@@ -38,6 +38,37 @@ class DSprites(Dataset):
         """
         return np.dot(latents, self.latents_bases).astype(int)
 
+    def train_test_latents(self, test_index=-1, test_split=0.1):    
+        """
+        Parameters
+        ----------
+        test_index - index of the latent to split for train and test
+        test_split - poriton of test_index latents to split
+        
+        Returns
+        ----------
+        train_latent_indexes, train_labels
+        """
+        latents_sizes = self.metadata['latents_sizes']
+        latents_counts = [y if x==-1 else x for x,y in zip(latents_counts, latents_sizes)]
+
+        assert test_index in range(0, len(latents_sizes-1))
+        assert len(latents_counts) == len(latents_sizes)
+        assert all([x <= y for x, y in zip(latents_counts, latents_sizes)])
+        
+        keys_ = ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
+        latents_possible_values = [self.metadata['latents_possible_values'][x] for x in keys_]
+
+        num_samples = np.cumprod(latents_counts)[-1]
+        samples = np.zeros((num_samples, len(latents_sizes)))
+        labels = np.zeros((num_samples, len(latents_sizes)), dtype=np.float32)
+
+        for i, (size, latent_size) in enumerate(zip(latents_counts, latents_sizes)):
+            selection = np.random.choice(np.random.randint(latent_size, size=size), size=num_samples)
+            samples[:, i] = selection
+            labels[:, i] = np.array([latents_possible_values[i][x] for x in selection])
+        return samples, labels
+
     def get_latents(self, latents_counts):
         """
         Parameters
@@ -50,14 +81,15 @@ class DSprites(Dataset):
 
         Returns
         ----------
-        latent_indexes - an array of shape cumprod(latent_counts)
-        latent_labels - an dictionary of {latent_labels:latent_indexes} for retrieving metadata
+        train_latent_indexes - an array of shape len(cumprod(latent_counts))
+        train_latent_labels - an dictionary of {latent_labels:latent_indexes} for retrieving metadata
         """
         latents_sizes = self.metadata['latents_sizes']
         latents_counts = [y if x==-1 else x for x,y in zip(latents_counts, latents_sizes)]
 
         assert len(latents_counts) == len(latents_sizes)
         assert all([x <= y for x, y in zip(latents_counts, latents_sizes)])
+
         keys_ = ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
         latents_possible_values = [self.metadata['latents_possible_values'][x] for x in keys_]
 
