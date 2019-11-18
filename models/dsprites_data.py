@@ -4,9 +4,59 @@ import torch
 import math
 from torch.utils.data import Dataset, DataLoader
 
+class DSpritesRaw():
+    def __init__(npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"):
+        dataset_zip = np.load(npz_path, allow_pickle=True, encoding='latin1')
+        
+        self.imgs = np.reshape(dataset_zip['imgs'], (-1, 4096))
+        self.latents_values = dataset_zip['latents_values']
+        self.latents_classes = dataset_zip['latents_classes']
+        self.metadata = dataset_zip['metadata'][()]
+        self.latents_sizes = self.metadata['latents_sizes']
+
+        # An array to convert latent indices to indices in imgs
+        self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
+                                np.array([1,])))
+    def train_test_latents(self, test_index=-1, test_split=0.1):    
+        """
+        Parameters
+        ----------
+        test_index - index of the latent to split for train and test
+        test_split - poriton of test_index latents to split
+        
+        Returns
+        ----------
+        train_latent_indexes, train_labels, test_latent_indexes, test_labels
+        """
+        latents_sizes = metadata['latents_sizes']
+
+        latents = np.random.permutation(latents_sizes[test_index])
+        train_latents = latents[:int(len(latents) * (1 - test_split))]
+        test_latents = latents[-int(len(latents) * (test_split)):]
+
+        train_latents_sizes, test_latents_sizes  = list(latents_sizes), list(latents_sizes)
+        train_latents_sizes[test_index], test_latents_sizes[test_index] = len(train_latents), len(test_latents)
+
+        n_train_samples, n_test_samples = np.cumprod(train_latents_sizes)[-1], np.cumprod(test_latents_sizes)[-1]
+
+        def sample_latents(sizes, latent_choices, n_samples):
+            samples = np.zeros((n_samples, len(sizes)))
+            labels = np.zeros((n_samples, len(sizes)), dtype=np.float32)
+            for i, latent_size in enumerate(sizes):
+                choices = latent_choices if i == test_index else latent_size
+                cur_latents = np.random.choice(choices, size=n_samples)
+                samples[:, i] = cur_latents
+                labels[:, i] = np.array([latents_possible_values[i][x] for x in cur_latents])
+            return samples, labels
+
+        train_samples, train_labels = sample_latents(train_latents_sizes, train_latents, n_train_samples)
+        test_samples, test_labels = sample_latents(test_latents_sizes, test_latents, n_test_samples)
+
+        return train_samples, train_labels, test_samples, test_labels
+
+
 class DSprites(Dataset):
-    def __init__(self, latents_counts=None, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz",
-        ):
+    def __init__(self, latent_indices, labels):
         dataset_zip = np.load(npz_path, allow_pickle=True, encoding='latin1')
         
         self.imgs = np.reshape(dataset_zip['imgs'], (-1, 4096))
@@ -28,8 +78,6 @@ class DSprites(Dataset):
         # Normalize data
         self.Y[:, 3] /= 2 * math.pi
 
-
-
     def latent_to_index(self, latents):
         """
         latents - an array of shape (-1, 6) which indexes values of latents
@@ -37,73 +85,7 @@ class DSprites(Dataset):
         returns the correnspoding indices in img[]
         """
         return np.dot(latents, self.latents_bases).astype(int)
-
-    def train_test_latents(self, test_index=-1, test_split=0.1):    
-        """
-        Parameters
-        ----------
-        test_index - index of the latent to split for train and test
-        test_split - poriton of test_index latents to split
         
-        Returns
-        ----------
-        train_latent_indexes, train_labels
-        """
-        latents_sizes = self.metadata['latents_sizes']
-        latents_counts = [y if x==-1 else x for x,y in zip(latents_counts, latents_sizes)]
-
-        assert test_index in range(0, len(latents_sizes-1))
-        assert len(latents_counts) == len(latents_sizes)
-        assert all([x <= y for x, y in zip(latents_counts, latents_sizes)])
-        
-        keys_ = ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
-        latents_possible_values = [self.metadata['latents_possible_values'][x] for x in keys_]
-
-        num_samples = np.cumprod(latents_counts)[-1]
-        samples = np.zeros((num_samples, len(latents_sizes)))
-        labels = np.zeros((num_samples, len(latents_sizes)), dtype=np.float32)
-
-        for i, (size, latent_size) in enumerate(zip(latents_counts, latents_sizes)):
-            selection = np.random.choice(np.random.randint(latent_size, size=size), size=num_samples)
-            samples[:, i] = selection
-            labels[:, i] = np.array([latents_possible_values[i][x] for x in selection])
-        return samples, labels
-
-    def get_latents(self, latents_counts):
-        """
-        Parameters
-        ----------
-        latent_counts - a list with 6 elements where each element corresponds to
-        [ 1  3  6 40 32 32]
-        ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
-        the number of ways that the latent variable can _randomly_ vary
-        (between 1 and n, or -1 for all)
-
-        Returns
-        ----------
-        train_latent_indexes - an array of shape len(cumprod(latent_counts))
-        train_latent_labels - an dictionary of {latent_labels:latent_indexes} for retrieving metadata
-        """
-        latents_sizes = self.metadata['latents_sizes']
-        latents_counts = [y if x==-1 else x for x,y in zip(latents_counts, latents_sizes)]
-
-        assert len(latents_counts) == len(latents_sizes)
-        assert all([x <= y for x, y in zip(latents_counts, latents_sizes)])
-
-        keys_ = ['color', 'shape', 'scale', 'orientation', 'posX', 'posY']
-        latents_possible_values = [self.metadata['latents_possible_values'][x] for x in keys_]
-
-        num_samples = np.cumprod(latents_counts)[-1]
-        samples = np.zeros((num_samples, len(latents_sizes)))
-        labels = np.zeros((num_samples, len(latents_sizes)), dtype=np.float32)
-
-        for i, (size, latent_size) in enumerate(zip(latents_counts, latents_sizes)):
-            selection = np.random.choice(np.random.randint(latent_size, size=size), size=num_samples)
-            samples[:, i] = selection
-            labels[:, i] = np.array([latents_possible_values[i][x] for x in selection])
-        return samples, labels
-
-
     def __len__(self):
         return len(self.X)
 

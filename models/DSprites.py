@@ -170,7 +170,7 @@ def test(model, dataset, verbose=True):
         print("Eval: ", test_loss, metrics_mean)
     return test_loss, metrics_mean
 
-def get_dsprites(config, test_split=0.1, shuffle=True):
+def get_dsprites(config, test_split=0., shuffle=True):
     """
     Returns train and test DSprites dataset.
     """
