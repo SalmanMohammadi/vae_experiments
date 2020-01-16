@@ -24,13 +24,14 @@ class DSpritesVAE(nn.Module):
         super(DSpritesVAE, self).__init__()
         self.z_size = z_size
         # encoder
-        self.fc1 = nn.Linear(4096, 2048)
-        self.fc2 = nn.Linear(2048, z_size) # mu
-        self.fc3 = nn.Linear(2048, z_size) # logvar
+        self.fc1 = nn.Linear(4096, 1200)
+        self.fc2 = nn.Linear(1200, z_size) # mu
+        self.fc3 = nn.Linear(1200, z_size) # logvar
 
         # decoder
-        self.fc4 = nn.Linear(z_size, 2048)
-        self.fc5 = nn.Linear(2048, 4096)
+        self.fc4 = nn.Linear(z_size, 1200)
+        self.fc5 = nn.Linear(1200, 1200)
+        self.fc6 = nn.Linear(1200, 4096)
 
     def sample(self, mu, logvar):
         std = torch.exp(0.5*logvar)
@@ -44,7 +45,8 @@ class DSpritesVAE(nn.Module):
 
     def decode(self, z):
         h3 = F.relu(self.fc4(z))
-        x_ = torch.sigmoid(self.fc5(h3))
+        h4 = F.relu(self.fc5(h3))
+        x_ = torch.sigmoid(self.fc6(h4))
         return x_
 
     def forward(self, x):
@@ -81,10 +83,10 @@ class RotDSpritesVAE(DSpritesVAE):
 
         self.include_loss = include_loss
         self.classifier_size = classifier_size
-        self.fc6 = nn.Linear(self.classifier_size, 1)
+        self.classifier = nn.Linear(self.classifier_size, 1)
 
     def predict_rotation(self, z):
-        return self.fc6(z[:,:self.classifier_size])
+        return self.classifier(z[:,:self.classifier_size])
 
     def forward(self, x):
         mu, logvar = self.encode(x)
@@ -170,11 +172,12 @@ def test(model, dataset, verbose=True):
         print("Eval: ", test_loss, metrics_mean)
     return test_loss, metrics_mean
 
-def get_dsprites(config):
+def get_dsprites(config, dataset=None):
     """
     Returns train and test DSprites dataset.
     """
-    dataset = dsprites.DSpritesRaw(**config.dataset)
+    if dataset is None:
+        dataset = dsprites.DSpritesRaw(**config.dataset)
     train_data, test_data = dataset.get_train_test_datasets()
 
     train_loader = DataLoader(train_data, batch_size=config.model['batch_size'])
@@ -182,14 +185,14 @@ def get_dsprites(config):
 
     return train_loader, test_loader
 
-def setup(config):
+def setup(config, dataset=None):
     """
     Initializes experiment parameters from config.
     """
     model = config.model['model'](**config.hparams).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=config.model['lr'])
     
-    train_data, test_data = get_dsprites(config)
+    train_data, test_data = get_dsprites(config, dataset=dataset)
     return train_data, test_data, model, optimizer
 
 Config = collections.namedtuple(
@@ -207,33 +210,45 @@ config_ = Config(
         'model': RotDSpritesVAE,
         'epochs':20,
         'lr':0.001,
-        'batch_size':256,
+        'batch_size':512,
     },
     hparams={
         'z_size': 10,
-        'classifier_size': 2,
-        'include_loss': True
+        'classifier_size': 1,
+        'include_loss': False
     }
 )
 
 if __name__ == "__main__":
-    writer = SummaryWriter(log_dir='./tmp/rot/run2')
+    # writer = SummaryWriter(log_dir='./tmp/rot/run2')
     train_data, test_data, model, opt = setup(config_)
     for epoch in range(config_.model['epochs']):
-        train(model, train_data, epoch, opt, writer=writer, verbose=True)
+        train(model, train_data, epoch, opt, writer=None, verbose=True)
     print(test(model, test_data, verbose=False))
 
     # View some predicitions from the model
 
     with torch.no_grad():
-        sample, _ = next(iter(test_data))
-        sample = sample[:9].to(DEVICE)
-        sample, *_ = model(sample)
-        sample = sample.cpu()
-        fig, axes = plt.subplots(3, 3, figsize=(8, 8))
-        plt.tight_layout()
+        num_samples = 10
+        results = []
+        for i in range(config_.hparams['z_size']):
+            samples = np.random.randn(num_samples, config_.hparams['z_size']).astype(np.float32)
+            samples[:, i] = np.linspace(-1, 1, num=num_samples, dtype=np.float32)
+            # print(samples)
+            samples = model.decode(torch.tensor(samples).to(DEVICE))
+            samples = samples.cpu()
+            results.append(samples)
+
+        fig, axes = plt.subplots(num_samples, config_.hparams['z_size'])
         plt.subplots_adjust(top=0.9, hspace=0.55)
-        for idx, x in enumerate(sample):
-            x = x.view((-1, 64, 64)).squeeze()
-            np.ravel(axes)[idx].imshow(x, cmap="Greys")
+        for i in range(num_samples):
+            for j in range(config_.hparams['z_size']):
+                x = results[i][j].view((-1, 64, 64)).squeeze()
+                axes[i, j].imshow(x, cmap="Greys")
+                axes[i, j].axis('off')
         plt.show()
+        plt.tight_layout()
+        plt.axis('off')
+        # sample = sample.cpu()
+        # fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+       

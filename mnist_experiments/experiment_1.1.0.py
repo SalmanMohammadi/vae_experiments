@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import VAE
 from VAE import RotVAE, MNISTVAE
-from torch.utils.tensorboard import SummaryWriter
 import datetime
 DEVICE = torch.device("cuda")
 

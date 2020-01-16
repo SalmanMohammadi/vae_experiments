@@ -50,18 +50,18 @@ def higgins_metric(latents, config, labels, classifier):
     z_size = config.hparams['classifier_size']
     # all dimensions
     all_score, *_ = classifier(latents, labels)
-    if config.hparams['include_loss']:
-        # constrained dimensions
-        constrained, *_ = classifier(latents[:,:z_size], labels)
-        # unconstrained dimensions
-        unconstrained, *_ = classifier(latents[:,z_size:], labels)
-    else:
-        # constrained dimensions
-        constrained, *_ = classifier(latents[:,:config.hparams['z_size']], labels)
-        # unconstrained dimensions
-        unconstrained, *_ = classifier(latents[:,0:], labels)
+    # if config.hparams['include_loss']:
+    #     # constrained dimensions
+    #     constrained, *_ = classifier(latents[:,:z_size], labels)
+    #     # unconstrained dimensions
+    #     unconstrained, *_ = classifier(latents[:,z_size:], labels)
+    # else:
+    #     # constrained dimensions
+    #     constrained, *_ = classifier(latents[:,:config.hparams['z_size']], labels)
+    #     # unconstrained dimensions
+    #     unconstrained, *_ = classifier(latents[:,0:], labels)
 
-    return np.array([all_score, constrained, unconstrained], dtype=np.float32)
+    return np.array(all_score, np.float32)
 
 def run_experiment(config, dataset=None):
 
@@ -90,8 +90,10 @@ def run_experiment(config, dataset=None):
 
     classification_results = np.array([shape_knn, shape_softmax])
     """
-    regression results will be shape (2, 3)
+    regression results will be shape (2)
     """
+    print("Classification results shape", classification_results.shape)
+
     # classify continous valued latents
     latent_factors = ['scale', 'orientation', 'posx', 'posy']
     all_regressors = [classifiers.n_neighbours,
@@ -99,10 +101,10 @@ def run_experiment(config, dataset=None):
                        classifiers.sigmoid_regression]
     """
     latent regressions will be
-    [[[all_scale_knn, cons, uncons], scale_linreg, scale_sigmoidreg],
+    [[[all_scale_knn], scale_linreg, scale_sigmoidreg],
      [orientation_knn, ...
       ...]]
-    shape (4, 3, 3) - (latent_factor, regressor, latent_portion)
+    shape (4, 3) - (latent_factor, regressor, latent_portion)
     for every latent factor along rows and every classifier along columns
     """
     regression_results = []
@@ -113,6 +115,8 @@ def run_experiment(config, dataset=None):
             results.append(higgins_metric(latents, config, metadata[:,i], regressor))
         regression_results.append(results)
     train_data, test_data = None, None
+    regression_results = np.array(regression_results)
+    print("Regression results shape", regression_results.shape)
     return [], [], np.array(regression_results), np.array(classification_results), metrics
 
 def repeat_experiment(config_, num_repetitions, dataset=None, writer=None):
@@ -233,22 +237,18 @@ config_ = DSprites.Config(
 dataset = dsprites.DSpritesRaw(**config_.dataset)
 # dataset = None
 
-classifier_sizes = [8, 9]
+z_sizes = [2, 4, 5, 6, 8, 16]
 # classifier_sizes = [6, 8, 9]
 configs = []
 # configs.append(config_)
 num_repetitions = 5
 
-
-hparams = config_.hparams.copy()
-hparams['include_loss'] = True
-config_ = config_._replace(hparams=hparams)
 # results_all = [mu_regr, std_regr, mu_class, std_class, mu_metrics, std_metrics]
 # results all = [(6,) x 6]
 results_all = ([], [], [], [], [], [])
-for classifier_size in classifier_sizes:
+for z_size in z_size:
     hparams = config_.hparams.copy()
-    hparams["classifier_size"] = classifier_size
+    hparams["z_size"] = z_size
     configs.append(config_._replace(hparams=hparams))
 
 for config in configs:

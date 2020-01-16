@@ -78,10 +78,34 @@ class DSpritesRaw():
         
         return train_samples, train_labels, test_samples, test_labels
 
+class DSPritesIID(Dataset):
+    def __init__(self, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz",
+                    size=10000):
+        with np.load(npz_path, allow_pickle=True, encoding='latin1') as dataset_zip:
+        
+            self.X = np.reshape(dataset_zip['imgs'], (-1, 4096))
+            self.y = dataset_zip['latents_values']
+            # self.latents_classes = dataset_zip['latents_classes']
+            # self.metadata = dataset_zip['metadata'][()]
+            # self.latents_sizes = self.metadata['latents_sizes']
+
+            # # An array to convert latent indices to indices in imgs
+            # self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
+            #                         np.array([1,])))    
+
+class DSpritesIIDDataset(Dataset):
+    def __init__(self):
+        pass
+
+    def __len__(self):
+        pass
+
+    def __getitem__(self):
+        pass
+
 
 class DSprites(Dataset):
     def __init__(self, x_indices, y, dataset):
-        
         self.X = x_indices
         self.Y = y
         self.dataset = dataset
@@ -98,11 +122,15 @@ class DSprites(Dataset):
 
         return (X_new, Y_new)
 
+
+
+
 if __name__ == "__main__":
-    raw_dataset = DSpritesRaw(test_index=3)
+    raw_dataset = DSpritesRaw(test_index=-1)
     train_data, test_data = raw_dataset.get_train_test_datasets()
 
-
+    print(train_data.Y)
+    print(test_data.Y)
     # dsprites = DSprites([-1, 1, 1, 9, 1, 1])
     data = DataLoader(train_data, 512, shuffle=True)
 
@@ -110,6 +138,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     batch, y = next(iter(data))
     batch = batch[:9]
+    print(batch)
     plt.subplots_adjust(top=0.9, hspace=0.55)
     for idx, x in enumerate(batch):
         x = x.view((-1, 64, 64)).squeeze()

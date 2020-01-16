@@ -8,7 +8,7 @@ from keras.layers import Input, Dense
 from keras import Sequential
 
 
-def linear_regression(x, y, n_splits=5, use_sklearn=True):
+def linear_regression(x, y, n_splits=4, use_sklearn=True):
     kf = KFold(n_splits=n_splits, shuffle=True)
     mse = []
     for train_index, test_index in kf.split(x):
@@ -31,7 +31,7 @@ def softmax_regression(x, y, num_classes=3):
     labels = np.zeros((len(y), len(np.unique(y))))
     labels[np.arange(len(y)), y] = 1
 
-    kf = KFold(n_splits=5, shuffle=True)
+    kf = KFold(n_splits=4, shuffle=True)
     losses, accs = [], []
     for train_index, test_index in kf.split(x):
         x_train, x_test = x[train_index], x[test_index]
@@ -43,7 +43,7 @@ def softmax_regression(x, y, num_classes=3):
                         input_shape=(x.shape[1],)))
         model.compile(optimizer='sgd', loss='categorical_crossentropy',
                       metrics=['accuracy'])
-        model.fit(x_train, y_train, epochs=4, verbose=0)#, validation_split=0.2)
+        model.fit(x_train, y_train, epochs=3, verbose=0)#, validation_split=0.2)
 
         #evaluate
         loss, acc = model.evaluate(x_test, y_test, verbose=0)
@@ -52,7 +52,7 @@ def softmax_regression(x, y, num_classes=3):
     return np.mean(acc), np.std(acc), np.mean(loss), np.std(loss)
 
 def sigmoid_regression(x, y, num_classes=3):
-    kf = KFold(n_splits=5, shuffle=True)
+    kf = KFold(n_splits=4, shuffle=True)
     losses = []
     for train_index, test_index in kf.split(x):
         x_train, x_test = x[train_index], x[test_index]
@@ -63,7 +63,7 @@ def sigmoid_regression(x, y, num_classes=3):
         model.add(Dense(1, activation='sigmoid',
                         input_shape=(x.shape[1],)))
         model.compile(optimizer='sgd', loss='mean_squared_error')
-        model.fit(x_train, y_train, epochs=1, verbose=1)#, validation_split=0.2)
+        model.fit(x_train, y_train, epochs=1, verbose=0)#, validation_split=0.2)
 
         #evaluate
         loss = model.evaluate(x_test, y_test, verbose=0)
@@ -72,7 +72,7 @@ def sigmoid_regression(x, y, num_classes=3):
     return np.mean(losses), np.std(losses)
 
 def n_neighbours(x, y, n_neighbors=4):
-    kf = KFold(n_splits=5, shuffle=True)
+    kf = KFold(n_splits=4, shuffle=True)
     mse = []
     for train_index, test_index in kf.split(x):
         x_train, x_test = x[train_index], x[test_index]
@@ -90,7 +90,7 @@ def n_neighbours(x, y, n_neighbors=4):
 
 
 def n_neighbours_classifier(x, y, n_neighbors=3, weights='uniform'):
-    kf = KFold(n_splits=5, shuffle=True)
+    kf = KFold(n_splits=4, shuffle=True)
     acc = []
     recall = []
     prec = []
