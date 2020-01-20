@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import math
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, RandomSampler, Sampler
 
 class DSpritesRaw():
     def __init__(self, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz",
@@ -81,10 +81,18 @@ class DSpritesRaw():
 class DSPritesIID(Dataset):
     def __init__(self, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz",
                     size=10000):
+
+        self.size = size
         with np.load(npz_path, allow_pickle=True, encoding='latin1') as dataset_zip:
-        
             self.X = np.reshape(dataset_zip['imgs'], (-1, 4096))
-            self.y = dataset_zip['latents_values']
+            self.Y = dataset_zip['latents_values']
+            self.Y[:, 3] /= 2 * math.pi
+            self.metadata = dataset_zip['metadata'][()]
+            self.latents_sizes = self.metadata['latents_sizes']
+
+        # An array to convert latent indices to indices in imgs
+            self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
+                                                np.array([1,])))
             # self.latents_classes = dataset_zip['latents_classes']
             # self.metadata = dataset_zip['metadata'][()]
             # self.latents_sizes = self.metadata['latents_sizes']
@@ -93,15 +101,32 @@ class DSPritesIID(Dataset):
             # self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
             #                         np.array([1,])))    
 
-class DSpritesIIDDataset(Dataset):
-    def __init__(self):
-        pass
-
     def __len__(self):
-        pass
+        return self.size
 
-    def __getitem__(self):
-        pass
+    def __getitem__(self, idx):
+        X_new = np.array(self.X[idx], dtype=np.float32)
+        Y_new = np.array(self.Y[idx])
+
+        return (X_new, Y_new)
+
+class IIDSampler(Sampler):
+    def __init__(self, data_source, num_samples):
+        self.data_source = data_source
+        self.num_samples = num_samples
+
+    def __iter__(self):
+        n = len(self.data_source)
+    
+    def latent_to_index(self, latents):
+        return np.dot(latents, self.data_source.latents_bases).astype(int)
+    
+    def sample_latent():
+        samples = np.zeros((self.num_samples, self.data_source.latents_sizes.size))
+        for lat_i, lat_size in enumerate(self.data_source.latents_sizes):
+            samples[:, lat_i] = np.random.randint(lat_size, size=self.num_samples)
+
+        return samples
 
 
 class DSprites(Dataset):
@@ -123,8 +148,27 @@ class DSprites(Dataset):
         return (X_new, Y_new)
 
 
+#testing IID
+# if __name__ == "__main__":
+#     dataset = DSPritesIID()
+
+#     batch_size = 512
+#     data = DataLoader(dataset, batch_size, sampler=RandomSampler(dataset, replacement=True, num_samples=batch_size))
+#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+#     plt.tight_layout()
+#     batch, y = next(iter(data))
+#     batch = batch[:9]
+#     print(batch)
+#     print(y)
+
+#     plt.subplots_adjust(top=0.9, hspace=0.55)
+#     for idx, x in enumerate(batch):
+#         x = x.view((-1, 64, 64)).squeeze()
+#         np.ravel(axes)[idx].imshow(x, cmap="Greys")
+#     plt.show()
 
 
+# testing raw
 if __name__ == "__main__":
     raw_dataset = DSpritesRaw(test_index=-1)
     train_data, test_data = raw_dataset.get_train_test_datasets()
