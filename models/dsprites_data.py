@@ -115,13 +115,17 @@ class IIDSampler(Sampler):
         self.data_source = data_source
         self.num_samples = num_samples
 
+    def __len__(self):
+        return self.num_samples
+
     def __iter__(self):
         n = len(self.data_source)
+        return iter(self.latent_to_index(self.sample_latent()))
     
     def latent_to_index(self, latents):
         return np.dot(latents, self.data_source.latents_bases).astype(int)
     
-    def sample_latent():
+    def sample_latent(self):
         samples = np.zeros((self.num_samples, self.data_source.latents_sizes.size))
         for lat_i, lat_size in enumerate(self.data_source.latents_sizes):
             samples[:, lat_i] = np.random.randint(lat_size, size=self.num_samples)
@@ -153,30 +157,40 @@ class DSprites(Dataset):
 #     dataset = DSPritesIID()
 
 #     batch_size = 512
-#     data = DataLoader(dataset, batch_size, sampler=RandomSampler(dataset, replacement=True, num_samples=batch_size))
+#     data = DataLoader(dataset, batch_size, sampler=IIDSampler(dataset, num_samples=batch_size))
+#     print(len(data))
+#     print(len(next(iter(data))[0]))
 #     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
 #     plt.tight_layout()
 #     batch, y = next(iter(data))
 #     batch = batch[:9]
-#     print(batch)
-#     print(y)
-
+#     # plot individual images
 #     plt.subplots_adjust(top=0.9, hspace=0.55)
 #     for idx, x in enumerate(batch):
 #         x = x.view((-1, 64, 64)).squeeze()
-#         np.ravel(axes)[idx].imshow(x, cmap="Greys")
+#         np.ravel(axes)[idx].imshow(x, interpolation='nearest', cmap="Greys_r")
+
+#     # plot the mean of batches
+#     batches, ys = zip(*[next(iter(data)) for _ in range(9)])
+#     print(batches[0].shape)
+#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+#     plt.subplots_adjust(top=0.9, hspace=0.55)
+#     for idx, batch in enumerate(batches):
+#         batch = batch.view((-1, 64, 64)).squeeze()
+#         np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
 #     plt.show()
+
 
 
 # testing raw
 if __name__ == "__main__":
-    raw_dataset = DSpritesRaw(test_index=-1)
+    raw_dataset = DSpritesRaw(test_index=5)
     train_data, test_data = raw_dataset.get_train_test_datasets()
 
     print(train_data.Y)
     print(test_data.Y)
     # dsprites = DSprites([-1, 1, 1, 9, 1, 1])
-    data = DataLoader(train_data, 512, shuffle=True)
+    data = DataLoader(train_data, 1024, shuffle=True)
 
     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
     plt.tight_layout()
@@ -187,9 +201,25 @@ if __name__ == "__main__":
     for idx, x in enumerate(batch):
         x = x.view((-1, 64, 64)).squeeze()
         np.ravel(axes)[idx].imshow(x, cmap="Greys")
-    plt.show()
     
-
+    batches, ys = zip(*[next(iter(data)) for _ in range(9)])
+    print(batches[0].shape)
+    fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+    plt.subplots_adjust(top=0.9, hspace=0.55)
+    for idx, batch in enumerate(batches):
+        batch = batch.view((-1, 64, 64)).squeeze()
+        np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
+    plt.title("Train data density")
+    
+    test_data = DataLoader(test_data, 1024, shuffle=True)
+    batches, ys = zip(*[next(iter(test_data)) for _ in range(9)])
+    fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+    plt.subplots_adjust(top=0.9, hspace=0.55)
+    for idx, batch in enumerate(batches):
+        batch = batch.view((-1, 64, 64)).squeeze()
+        np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
+    plt.title("Test data density")
+    plt.show()
     # DATA_PATH = "../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"
     # dataset_zip = np.load(DATA_PATH, allow_pickle=True, encoding='latin1')
     # print(list(dataset_zip.keys()))
