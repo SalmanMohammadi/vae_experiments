@@ -78,35 +78,55 @@ class DSpritesRaw():
         
         return train_samples, train_labels, test_samples, test_labels
 
-class DSPritesIID(Dataset):
-    def __init__(self, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz",
-                    size=10000):
 
-        self.size = size
+class DSpritesLoader():
+    def __init__(self, npz_path="../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"):
         with np.load(npz_path, allow_pickle=True, encoding='latin1') as dataset_zip:
+            self.metadata = dataset_zip['metadata'][()]
             self.X = np.reshape(dataset_zip['imgs'], (-1, 4096))
             self.Y = dataset_zip['latents_values']
             self.Y[:, 3] /= 2 * math.pi
-            self.metadata = dataset_zip['metadata'][()]
-            self.latents_sizes = self.metadata['latents_sizes']
+        
+class DSPritesIID(Dataset):
+    # onehot - index(es) of labels to be converted to onehot.
+    def __init__(self, dsprites_loader, size=10000, onehot=-1):
 
+        self.size = size
+
+        self.dsprites_loader = dsprites_loader
+        # self.X = np.reshape(dataset_zip['imgs'], (-1, 4096))
+        # self.Y = dataset_zip['latents_values']
+        # self.Y[:, 3] /= 2 * math.pi
+        self.metadata = self.dsprites_loader.metadata
+        self.latents_sizes = self.metadata['latents_sizes']
         # An array to convert latent indices to indices in imgs
-            self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
+        self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
                                                 np.array([1,])))
             # self.latents_classes = dataset_zip['latents_classes']
-            # self.metadata = dataset_zip['metadata'][()]
-            # self.latents_sizes = self.metadata['latents_sizes']
-
             # # An array to convert latent indices to indices in imgs
             # self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
             #                         np.array([1,])))    
 
+        self.samples = self.sample_latent()
+        self.indices = self.latent_to_index(self.samples)
+
     def __len__(self):
         return self.size
 
+    def latent_to_index(self, latents):
+        return np.dot(latents, self.latents_bases).astype(int)
+    
+    def sample_latent(self):
+        samples = np.zeros((self.size, self.latents_sizes.size))
+        for lat_i, lat_size in enumerate(self.latents_sizes):
+            samples[:, lat_i] = np.random.randint(lat_size, size=self.size)
+
+        return samples
+
     def __getitem__(self, idx):
-        X_new = np.array(self.X[idx], dtype=np.float32)
-        Y_new = np.array(self.Y[idx])
+        idx = self.indices[idx]
+        X_new = np.array(self.dsprites_loader.X[idx], dtype=np.float32)
+        Y_new = np.array(self.dsprites_loader.Y[idx], dtype=np.float32)
 
         return (X_new, Y_new)
 
@@ -153,55 +173,25 @@ class DSprites(Dataset):
 
 
 #testing IID
-# if __name__ == "__main__":
-#     dataset = DSPritesIID()
-
-#     batch_size = 512
-#     data = DataLoader(dataset, batch_size, sampler=IIDSampler(dataset, num_samples=batch_size))
-#     print(len(data))
-#     print(len(next(iter(data))[0]))
-#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
-#     plt.tight_layout()
-#     batch, y = next(iter(data))
-#     batch = batch[:9]
-#     # plot individual images
-#     plt.subplots_adjust(top=0.9, hspace=0.55)
-#     for idx, x in enumerate(batch):
-#         x = x.view((-1, 64, 64)).squeeze()
-#         np.ravel(axes)[idx].imshow(x, interpolation='nearest', cmap="Greys_r")
-
-#     # plot the mean of batches
-#     batches, ys = zip(*[next(iter(data)) for _ in range(9)])
-#     print(batches[0].shape)
-#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
-#     plt.subplots_adjust(top=0.9, hspace=0.55)
-#     for idx, batch in enumerate(batches):
-#         batch = batch.view((-1, 64, 64)).squeeze()
-#         np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
-#     plt.show()
-
-
-
-# testing raw
 if __name__ == "__main__":
-    raw_dataset = DSpritesRaw(test_index=5)
-    train_data, test_data = raw_dataset.get_train_test_datasets()
+    dsprites_loader = DSpritesLoader()
+    dataset = DSPritesIID(size=5000, dsprites_loader=dsprites_loader)
 
-    print(train_data.Y)
-    print(test_data.Y)
-    # dsprites = DSprites([-1, 1, 1, 9, 1, 1])
-    data = DataLoader(train_data, 1024, shuffle=True)
-
+    batch_size = 512
+    data = DataLoader(dataset, batch_size)#, sampler=IIDSampler(dataset, num_samples=batch_size))
+    print(len(data))
+    print(len(next(iter(data))[0]))
     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
     plt.tight_layout()
     batch, y = next(iter(data))
     batch = batch[:9]
-    print(batch)
+    # plot individual images
     plt.subplots_adjust(top=0.9, hspace=0.55)
     for idx, x in enumerate(batch):
         x = x.view((-1, 64, 64)).squeeze()
-        np.ravel(axes)[idx].imshow(x, cmap="Greys")
-    
+        np.ravel(axes)[idx].imshow(x, interpolation='nearest', cmap="Greys_r")
+
+    # plot the mean of batches
     batches, ys = zip(*[next(iter(data)) for _ in range(9)])
     print(batches[0].shape)
     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
@@ -209,17 +199,48 @@ if __name__ == "__main__":
     for idx, batch in enumerate(batches):
         batch = batch.view((-1, 64, 64)).squeeze()
         np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
-    plt.title("Train data density")
-    
-    test_data = DataLoader(test_data, 1024, shuffle=True)
-    batches, ys = zip(*[next(iter(test_data)) for _ in range(9)])
-    fig, axes = plt.subplots(3, 3, figsize=(8, 8))
-    plt.subplots_adjust(top=0.9, hspace=0.55)
-    for idx, batch in enumerate(batches):
-        batch = batch.view((-1, 64, 64)).squeeze()
-        np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
-    plt.title("Test data density")
     plt.show()
+
+
+
+# testing raw
+# if __name__ == "__main__":
+#     raw_dataset = DSpritesRaw(test_index=5)
+#     train_data, test_data = raw_dataset.get_train_test_datasets()
+
+#     print(train_data.Y)
+#     print(test_data.Y)
+#     # dsprites = DSprites([-1, 1, 1, 9, 1, 1])
+#     data = DataLoader(train_data, 1024, shuffle=True)
+
+#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+#     plt.tight_layout()
+#     batch, y = next(iter(data))
+#     batch = batch[:9]
+#     print(batch)
+#     plt.subplots_adjust(top=0.9, hspace=0.55)
+#     for idx, x in enumerate(batch):
+#         x = x.view((-1, 64, 64)).squeeze()
+#         np.ravel(axes)[idx].imshow(x, cmap="Greys")
+    
+#     batches, ys = zip(*[next(iter(data)) for _ in range(9)])
+#     print(batches[0].shape)
+#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+#     plt.subplots_adjust(top=0.9, hspace=0.55)
+#     for idx, batch in enumerate(batches):
+#         batch = batch.view((-1, 64, 64)).squeeze()
+#         np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
+#     plt.title("Train data density")
+    
+#     test_data = DataLoader(test_data, 1024, shuffle=True)
+#     batches, ys = zip(*[next(iter(test_data)) for _ in range(9)])
+#     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
+#     plt.subplots_adjust(top=0.9, hspace=0.55)
+#     for idx, batch in enumerate(batches):
+#         batch = batch.view((-1, 64, 64)).squeeze()
+#         np.ravel(axes)[idx].imshow(batch.mean(axis=0), interpolation='nearest', cmap="Greys_r")
+#     plt.title("Test data density")
+#     plt.show()
     # DATA_PATH = "../data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"
     # dataset_zip = np.load(DATA_PATH, allow_pickle=True, encoding='latin1')
     # print(list(dataset_zip.keys()))

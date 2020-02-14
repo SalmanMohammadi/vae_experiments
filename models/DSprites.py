@@ -73,43 +73,44 @@ class DSpritesVAE(nn.Module):
         x_, mu, logvar = self(data)
         return self.compute_loss(data, x_, mu, logvar)
 
-class RotDSpritesVAE(DSpritesVAE):
+class RegDSpritesVAE(DSpritesVAE):
     def __str__(self):
-        return "RotDSpritesVAE"
+        return "RegDSpritesVAE"
 
-    def __init__(self, z_size=4, classifier_size=1, include_loss=True, *args, **kwargs):
-        super(RotDSpritesVAE, self).__init__(z_size=z_size)
+    def __init__(self, z_size=4, classifier_size=1, include_loss=True, reg_index=-1, *args, **kwargs):
+        super(RegDSpritesVAE, self).__init__(z_size=z_size)
         assert classifier_size <= self.z_size and classifier_size > 0
 
         self.include_loss = include_loss
+        self.reg_index = reg_index
         self.classifier_size = classifier_size
         self.classifier = nn.Linear(self.classifier_size, 1)
 
-    def predict_rotation(self, z):
+    def regress(self, z):
         return self.classifier(z[:,:self.classifier_size])
 
     def forward(self, x):
         mu, logvar = self.encode(x)
         z = self.sample(mu, logvar)
-        rot_ = self.predict_rotation(z)
+        y_ = self.regress(z)
         x_ = self.decode(z)
-        return x_, mu, logvar, rot_
+        return x_, mu, logvar, y_
 
-    def compute_loss(self, x, x_, mu, logvar, rot, rot_):
+    def compute_loss(self, x, x_, mu, logvar, y, y_):
         elbo, losses = super().compute_loss(x, x_, mu, logvar)
 
-        mse = F.mse_loss(rot_, rot)
+        mse = F.mse_loss(y_, y)
         if self.include_loss:
             return elbo + mse, losses + (mse,)
         return elbo, losses + (mse,)
 
     def batch_forward(self, data):
         data, t = data
-        rot = t[:, 3]
-        data, rot = data.to(DEVICE), rot.to(device=DEVICE)
-        rot = rot.view(-1, 1)
-        x_, mu, logvar, rot_ = self(data)
-        return self.compute_loss(data, x_, mu, logvar, rot, rot_)
+        y = t[:, self.reg_index]
+        data, y = data.to(DEVICE), y.to(device=DEVICE)
+        y = y.view(-1, 1)
+        x_, mu, logvar, y_ = self(data)
+        return self.compute_loss(data, x_, mu, logvar, y, y_)
 
 def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_interval=100):
     """
@@ -185,14 +186,21 @@ def get_dsprites(config, dataset=None):
 
     return train_loader, test_loader
 
-def setup(config, dataset=None):
+def setup(config, dataset=None, iid=False):
     """
     Initializes experiment parameters from config.
     """
     model = config.model['model'](**config.hparams).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=config.model['lr'])
-    
-    train_data, test_data = get_dsprites(config, dataset=dataset)
+
+    if iid:
+        dsprites_loader = dsprites.DSpritesLoader()
+        train_data = DataLoader(dsprites.DSPritesIID(size=config.dataset['train_size'], dsprites_loader=dsprites_loader),
+                                batch_size=config.model['batch_size'], pin_memory=True)
+        test_data = DataLoader(dsprites.DSPritesIID(size=config.dataset['test_size'], dsprites_loader=dsprites_loader),
+                                batch_size=config.model['batch_size'])                    
+    else:
+        train_data, test_data = get_dsprites(config, dataset=dataset)
     return train_data, test_data, model, optimizer
 
 Config = collections.namedtuple(
@@ -203,17 +211,21 @@ Config = collections.namedtuple(
 config_ = Config(
     # dataset
     dataset={
-        'test_index': 3
+        'test_index': 3,
+        'iid': True,
+        'train_size': 300000,
+        'test_size': 10000
     },
     #model
     model={
-        'model': RotDSpritesVAE,
-        'epochs':20,
-        'lr':0.001,
+        'model': RegDSpritesVAE,
+        'epochs':40,
+        'lr':0.0001,
         'batch_size':512,
+        'reg_index': 2
     },
     hparams={
-        'z_size': 10,
+        'z_size': 6,
         'classifier_size': 1,
         'include_loss': False
     }
@@ -221,9 +233,9 @@ config_ = Config(
 
 if __name__ == "__main__":
     # writer = SummaryWriter(log_dir='./tmp/rot/run2')
-    train_data, test_data, model, opt = setup(config_)
-    for epoch in range(config_.model['epochs']):
-        train(model, train_data, epoch, opt, writer=None, verbose=True)
+    train_data, test_data, model, opt = setup(config_, iid=config_.dataset['iid'])
+    # for epoch in range(config_.model['epochs']):
+    #     train(model, train_data, epoch, opt, writer=None, verbose=True)
     print(test(model, test_data, verbose=False))
 
     # View some predicitions from the model
@@ -242,7 +254,9 @@ if __name__ == "__main__":
         fig, axes = plt.subplots(num_samples, config_.hparams['z_size'])
         plt.subplots_adjust(top=0.9, hspace=0.55)
         for i in range(num_samples):
-            for j in range(config_.hparams['z_size']):
+            for j in range(config_.hparams['z_size']-1):
+                print("i, j", i, j, config_.hparams['z_size'])
+                print(len(results), len(results[i]))
                 x = results[i][j].view((-1, 64, 64)).squeeze()
                 axes[i, j].imshow(x, cmap="Greys")
                 axes[i, j].axis('off')
