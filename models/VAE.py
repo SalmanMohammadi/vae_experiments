@@ -147,45 +147,6 @@ class ScaleVAE(MNISTVAE):
         x_, mu, logvar, rot_ = self(data)
         return self.compute_loss(data, x_, mu, logvar, rot, rot_)
 
-class VAE_CF(MNISTVAE):
-    def __str__(self):
-        return "CounterFactualVAE"
-
-    def __init__(self, z_size=6, classifier_size=1, include_loss=True, *args, **kwargs):
-        super(VAE_CF, self).__init__(z_size=z_size)
-        assert classifier_size <= self.z_size and classifier_size > 0
-
-        self.include_loss = include_loss
-        self.classifier_size = classifier_size
-        self.fc6 = nn.Linear(self.classifier_size, 3)
-
-    def predict_rotation(self, z):
-        return self.fc6(z[:,:self.classifier_size])
-
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-        z = self.sample(mu, logvar)
-        rot_ = self.predict_rotation(z)
-        x_ = self.decode(z)
-        return x_, mu, logvar, rot_
-
-    def compute_loss(self, x, x_, mu, logvar, rot, rot_):
-        elbo, losses = super().compute_loss(x, x_, mu, logvar)
-
-        mse = F.mse_loss(rot_, rot)
-        if self.include_loss:
-            return elbo + mse, losses + (mse,)
-        return elbo, losses + (mse,)
-
-    def batch_forward(self, data):
-        data, t = data
-        rot = t[:, 4]
-        data, rot = data.to(DEVICE), rot.to(device=DEVICE)
-        rot = rot.view(-1, 1)
-        x_, mu, logvar, rot_ = self(data)
-        return self.compute_loss(data, x_, mu, logvar, rot, rot_)
-
-
 def train(model, dataset, epoch, optimizer, verbose=True, writer=None):
     """
     Trains the model for a single 'epoch' on the data
@@ -221,7 +182,7 @@ def train(model, dataset, epoch, optimizer, verbose=True, writer=None):
     if verbose:
         print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(dataset.dataset)))
-    writer.flush()RotVAE
+    writer.flush()
     model.eval()
     test_loss = 0
     metrics_mean = []
@@ -250,7 +211,7 @@ def get_mnist(config):
 
     return data
 
-def setup(config, dataset='mnist'):
+def setup(config, dataset='dsprites'):
     """
     Initializes experiment parameters from config.
     """

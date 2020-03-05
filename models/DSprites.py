@@ -112,7 +112,144 @@ class RegDSpritesVAE(DSpritesVAE):
         x_, mu, logvar, y_ = self(data)
         return self.compute_loss(data, x_, mu, logvar, y, y_)
 
-def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_interval=100):
+class FactorVAE(DSpritesVAE):
+    def __str__(self):
+        return "FactorVAE"
+
+    def __init__(self, z_size=6, classifier_size=1, include_loss=True, *args, **kwargs):
+        z_size = z_size - classifier_size
+        super(FactorVAE, self).__init__()
+        self.z_size = z_size
+        self.fc1 = nn.Linear(4096, 1200)
+        self.fc2 = nn.Linear(1200, z_size) # mu
+        self.fc3 = nn.Linear(1200, z_size) # logvar
+
+        # decoder
+        self.fc4 = nn.Linear(z_size+classifier_size, 1200)
+        self.fc5 = nn.Linear(1200, 1200)
+        self.fc6 = nn.Linear(1200, 4096)
+        assert classifier_size <= self.z_size and classifier_size > 0
+
+        self.include_loss = include_loss
+        self.classifier_size = classifier_size
+
+        self.z_prime_mu = nn.Linear(1200, classifier_size) # mu
+        self.z_prime_logvar = nn.Linear(1200, classifier_size) # logvar
+
+        self.fc7 = nn.Linear(self.classifier_size, 6)
+
+        self.ce_loss = nn.CrossEntropyLoss()
+
+    def predict_latent(self, z_prime):
+        return self.fc7(z_prime)
+
+    def encode(self, x):
+        h1 = F.relu(self.fc1(x))
+        mu, logvar = self.fc2(h1), self.fc3(h1)
+        mu_prime, logvar_prime = self.z_prime_mu(h1), self.z_prime_logvar(h1)
+        return mu, logvar, mu_prime, logvar_prime
+
+    def sample(self, mu, logvar, mu_prime, logvar_prime):
+        z_ = super().sample(mu, logvar)
+        z_prime = super().sample(mu_prime, logvar_prime)
+        return z_, z_prime
+        
+    def forward(self, x):
+        mu, logvar, mu_prime, logvar_prime = self.encode(x)
+        z_, z_prime = self.sample(mu, logvar, mu_prime, logvar_prime)
+        z = torch.cat((z_, z_prime), dim=1)
+        y_ = self.predict_latent(z_prime)
+        x_ = self.decode(z)
+        return x_, mu, logvar, mu_prime, logvar_prime, y_
+
+    def compute_loss(self, x, x_, y, y_, mu, logvar, mu_prime, logvar_prime):
+        elbo, losses = super().compute_loss(x, x_, mu, logvar)
+
+        # KL divergence between z_prime and p
+        kl_loss = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
+
+        # CE loss
+        ce_loss = self.ce_loss(y_, y)
+
+        return elbo + kl_loss + ce_loss, losses + (kl_loss, ce_loss,)
+
+    def batch_forward(self, data, device=DEVICE):
+        data, y = data
+        data = data.to(device)
+        y = y[:,2].to(device)
+        x_, mu, logvar, mu_prime, logvar_prime, y_ = self(data)
+        return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime)
+    
+
+class class FactorBernoulliVAE(DSpritesVAE):
+    def __str__(self):
+        return "FactorVAE"
+
+    def __init__(self, z_size=6, classifier_size=1, include_loss=True, *args, **kwargs):
+        z_size = z_size - classifier_size
+        super(FactorVAE, self).__init__()
+        self.z_size = z_size
+        self.fc1 = nn.Linear(4096, 1200)
+        self.fc2 = nn.Linear(1200, z_size) # mu
+        self.fc3 = nn.Linear(1200, z_size) # logvar
+
+        # decoder
+        self.fc4 = nn.Linear(z_size+classifier_size, 1200)
+        self.fc5 = nn.Linear(1200, 1200)
+        self.fc6 = nn.Linear(1200, 4096)
+        assert classifier_size <= self.z_size and classifier_size > 0
+
+        self.include_loss = include_loss
+        self.classifier_size = classifier_size
+
+        self.z_prime_mu = nn.Linear(1200, classifier_size) # mu
+        self.z_prime_logvar = nn.Linear(1200, classifier_size) # logvar
+
+        self.fc7 = nn.Linear(self.classifier_size, 6)
+
+        self.ce_loss = nn.CrossEntropyLoss()
+
+    def predict_latent(self, z_prime):
+        return self.fc7(z_prime)
+
+    def encode(self, x):
+        h1 = F.relu(self.fc1(x))
+        mu, logvar = self.fc2(h1), self.fc3(h1)
+        mu_prime, logvar_prime = self.z_prime_mu(h1), self.z_prime_logvar(h1)
+        return mu, logvar, mu_prime, logvar_prime
+
+    def sample(self, mu, logvar, mu_prime, logvar_prime):
+        z_ = super().sample(mu, logvar)
+        z_prime = super().sample(mu_prime, logvar_prime)
+        return z_, z_prime
+        
+    def forward(self, x):
+        mu, logvar, mu_prime, logvar_prime = self.encode(x)
+        z_, z_prime = self.sample(mu, logvar, mu_prime, logvar_prime)
+        z = torch.cat((z_, z_prime), dim=1)
+        y_ = self.predict_latent(z_prime)
+        x_ = self.decode(z)
+        return x_, mu, logvar, mu_prime, logvar_prime, y_
+
+    def compute_loss(self, x, x_, y, y_, mu, logvar, mu_prime, logvar_prime):
+        elbo, losses = super().compute_loss(x, x_, mu, logvar)
+
+        # KL divergence between z_prime and p
+        kl_loss = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
+
+        # CE loss
+        ce_loss = self.ce_loss(y_, y)
+
+        return elbo + kl_loss + ce_loss, losses + (kl_loss, ce_loss,)
+
+    def batch_forward(self, data, device=DEVICE):
+        data, y = data
+        data = data.to(device)
+        y = y[:,2].to(device)
+        x_, mu, logvar, mu_prime, logvar_prime, y_ = self(data)
+        return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime) 
+
+def train(model, dataset, epoch, optimizer, device=DEVICE, verbose=True, writer=None, log_interval=100, metrics_labels=None):
     """
     Trains the model for a single 'epoch' on the data
     """
@@ -122,7 +259,7 @@ def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_inter
     dataset_len = len(dataset) * dataset.batch_size
     for batch_id, data in enumerate(dataset):
         optimizer.zero_grad()
-        loss, metrics = model.batch_forward(data)
+        loss, metrics = model.batch_forward(data, device=DEVICE)
         loss.backward()
         optimizer.step()
 
@@ -134,7 +271,10 @@ def train(model, dataset, epoch, optimizer, verbose=True, writer=None, log_inter
             print('Train Epoch: {}, batch: {}, loss: {}'.format(
                 epoch, batch_id, loss.item() / data_len))
             metrics = [x.item()/data_len for x in metrics]
-            print(metrics)
+            if metrics_labels:
+                print(", ".join(list(map(lambda x: "%s: %.5f" % x, zip(metrics_labels, metrics)))))
+            else:
+                print(metrics)
 
     metrics_mean = np.array(metrics_mean)
     metrics_mean = np.sum(metrics_mean, axis=0)/dataset_len
@@ -186,11 +326,11 @@ def get_dsprites(config, dataset=None):
 
     return train_loader, test_loader
 
-def setup(config, dataset=None, iid=False):
+def setup(config, dataset=None, iid=False, device=DEVICE):
     """
     Initializes experiment parameters from config.
     """
-    model = config.model['model'](**config.hparams).to(DEVICE)
+    model = config.model['model'](**config.hparams).to(device)
     optimizer = optim.Adam(model.parameters(), lr=config.model['lr'])
 
     if iid:

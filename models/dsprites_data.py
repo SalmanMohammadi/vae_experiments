@@ -86,10 +86,11 @@ class DSpritesLoader():
             self.X = np.reshape(dataset_zip['imgs'], (-1, 4096))
             self.Y = dataset_zip['latents_values']
             self.Y[:, 3] /= 2 * math.pi
+            self.Y[:, 1] -= 1
         
 class DSPritesIID(Dataset):
     # onehot - index(es) of labels to be converted to onehot.
-    def __init__(self, dsprites_loader, size=10000, onehot=-1):
+    def __init__(self, dsprites_loader, size=10000):
 
         self.size = size
 
@@ -106,7 +107,6 @@ class DSPritesIID(Dataset):
             # # An array to convert latent indices to indices in imgs
             # self.latents_bases = np.concatenate((self.latents_sizes[::-1].cumprod()[::-1][1:],
             #                         np.array([1,])))    
-
         self.samples = self.sample_latent()
         self.indices = self.latent_to_index(self.samples)
 
@@ -126,9 +126,8 @@ class DSPritesIID(Dataset):
     def __getitem__(self, idx):
         idx = self.indices[idx]
         X_new = np.array(self.dsprites_loader.X[idx], dtype=np.float32)
-        Y_new = np.array(self.dsprites_loader.Y[idx], dtype=np.float32)
-
-        return (X_new, Y_new)
+        Y_new = np.array(self.dsprites_loader.Y[idx], dtype=np.long)
+        return (X_new, Y_new.squeeze())
 
 class IIDSampler(Sampler):
     def __init__(self, data_source, num_samples):
@@ -176,15 +175,15 @@ class DSprites(Dataset):
 if __name__ == "__main__":
     dsprites_loader = DSpritesLoader()
     dataset = DSPritesIID(size=5000, dsprites_loader=dsprites_loader)
-
     batch_size = 512
     data = DataLoader(dataset, batch_size)#, sampler=IIDSampler(dataset, num_samples=batch_size))
-    print(len(data))
-    print(len(next(iter(data))[0]))
     fig, axes = plt.subplots(3, 3, figsize=(8, 8))
     plt.tight_layout()
     batch, y = next(iter(data))
+    print("hello")
+    print(y.shape)
     batch = batch[:9]
+    exit()
     # plot individual images
     plt.subplots_adjust(top=0.9, hspace=0.55)
     for idx, x in enumerate(batch):
