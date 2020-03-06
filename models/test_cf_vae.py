@@ -22,7 +22,7 @@ config_ = DSprites.Config(
         'metrics_labels':['r_loss', 'kl', 'kl_prime', 'classification_ce']
     },
     hparams={
-        'z_size': 6,
+        'z_size': 10,
         'classifier_size': 1,
         'include_loss': False
     }
@@ -30,7 +30,6 @@ config_ = DSprites.Config(
 
 train_data, test_data, model, opt = DSprites.setup(config_, iid=config_.dataset['iid'])
 for epoch in range(config_.model['epochs']):
-    print(epoch)
     DSprites.train(model, train_data, epoch, opt, writer=None, verbose=True, metrics_labels=config_.model['metrics_labels'])
 
 sample = next(iter(test_data))[0][0]
@@ -52,6 +51,6 @@ fig=plt.figure(figsize=(8, 8))
 fig.subplots_adjust(hspace=0, wspace=0) 
 for i in range(1, num_samples*config_.hparams['z_size']+1):
     fig.add_subplot(num_samples, config_.hparams['z_size'], i)
-    plt.imshow(results[i-1], cmap='Greys')
+    plt.imshow(1-results[i-1], cmap='Greys')
     # plt.axis('off')
 plt.show()

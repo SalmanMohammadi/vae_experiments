@@ -180,8 +180,13 @@ class FactorVAE(DSpritesVAE):
         x_, mu, logvar, mu_prime, logvar_prime, y_ = self(data)
         return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime)
     
+    def decode(self, z):
+        h3 = F.tanh(self.fc4(z))
+        h4 = F.tanh(self.fc5(h3))
+        x_ = torch.sigmoid(self.fc6(h4))
+        return x_
 
-class class FactorBernoulliVAE(DSpritesVAE):
+class FactorBernoulliVAE(DSpritesVAE):
     def __str__(self):
         return "FactorVAE"
 
