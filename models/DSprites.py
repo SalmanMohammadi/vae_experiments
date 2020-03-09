@@ -166,12 +166,16 @@ class FactorVAE(DSpritesVAE):
         elbo, losses = super().compute_loss(x, x_, mu, logvar)
 
         # KL divergence between z_prime and p
-        kl_loss = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
+        kl_prime = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
+
+        # kl divergence between z_prime and z
+        # https://stats.stackexchange.com/questions/7440/kl-divergence-between-two-univariate-gaussians
+        kl_latent = 0
 
         # CE loss
         ce_loss = self.ce_loss(y_, y)
 
-        return elbo + kl_loss + ce_loss, losses + (kl_loss, ce_loss,)
+        return elbo + kl_prime + ce_loss - kl_latent, losses + (kl_prime, kl_latent, ce_loss,)
 
     def batch_forward(self, data, device=DEVICE):
         data, y = data
