@@ -54,4 +54,50 @@ for i in range(1, num_samples*config_.hparams['z_size']+1):
     fig.add_subplot(config_.hparams['z_size'], num_samples, i)
     plt.imshow(1-results[i-1], cmap='Greys')
     # plt.axis('off')
+
+sample = next(iter(test_data))[0][0]
+plt.imshow(sample.view(64, 64), cmap='Greys')
+mu, _, mu_prime, _ = model.encode(sample.unsqueeze(dim=0).to(DEVICE))
+z = torch.cat((mu, mu_prime), dim=1).detach().cpu()
+num_samples = 11
+results = []
+for dimension in np.arange(config_.hparams['z_size']):
+    values = np.linspace(-1., 1., num=num_samples)
+    latent_traversal_vectors = np.tile(z.cpu(), [num_samples, 1])
+    latent_traversal_vectors[:, dimension] += values
+    images = model.decode(torch.tensor(latent_traversal_vectors).to(DEVICE)).view((-1, 64, 64)).detach().cpu().numpy()
+    results.append(images)
+
+results = np.array(results).swapaxes(0,1)
+results = np.concatenate(results, 0)
+print(results.shape)
+fig=plt.figure(figsize=(8, 8))
+fig.subplots_adjust(hspace=0, wspace=0) 
+for i in range(1, num_samples*config_.hparams['z_size']+1):
+    fig.add_subplot(config_.hparams['z_size'], num_samples, i)
+    plt.imshow(1-results[i-1], cmap='Greys')
+    # plt.axis('off')
+
+sample = next(iter(test_data))[0][0]
+plt.imshow(sample.view(64, 64), cmap='Greys')
+mu, _, mu_prime, _ = model.encode(sample.unsqueeze(dim=0).to(DEVICE))
+z = torch.cat((mu, mu_prime), dim=1).detach().cpu()
+num_samples = 11
+results = []
+for dimension in np.arange(config_.hparams['z_size']):
+    values = np.linspace(-1., 1., num=num_samples)
+    latent_traversal_vectors = np.tile(z.cpu(), [num_samples, 1])
+    latent_traversal_vectors[:, dimension] += values
+    images = model.decode(torch.tensor(latent_traversal_vectors).to(DEVICE)).view((-1, 64, 64)).detach().cpu().numpy()
+    results.append(images)
+
+results = np.array(results).swapaxes(0,1)
+results = np.concatenate(results, 0)
+print(results.shape)
+fig=plt.figure(figsize=(8, 8))
+fig.subplots_adjust(hspace=0, wspace=0) 
+for i in range(1, num_samples*config_.hparams['z_size']+1):
+    fig.add_subplot(config_.hparams['z_size'], num_samples, i)
+    plt.imshow(1-results[i-1], cmap='Greys')
+    # plt.axis('off')
 plt.show()

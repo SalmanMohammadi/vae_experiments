@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.distributions as dist
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter 
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -169,8 +170,9 @@ class FactorVAE(DSpritesVAE):
         kl_prime = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
 
         # kl divergence between z_prime and z
-        # https://stats.stackexchange.com/questions/7440/kl-divergence-between-two-univariate-gaussians
-        kl_latent = 0
+        z_ = dist.Normal(mu, logvar.exp().pow(1/2))
+        z_prime_ = dist.Normal(mu_prime, logvar_prime.exp().pow(1/2))
+        kl_latent = dist.kl.kl_divergence(z_prime_, z_).mean()
 
         # CE loss
         ce_loss = self.ce_loss(y_, y)
