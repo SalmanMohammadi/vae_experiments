@@ -28,13 +28,14 @@ config_ = DSprites.Config(
     }
 )
 
-# train_data, test_data, model, opt = DSprites.setup(config_, iid=config_.dataset['iid'])
-# for epoch in range(config_.model['epochs']):
-#     DSprites.train(model, train_data, epoch, opt, writer=None, verbose=True, metrics_labels=config_.model['metrics_labels'])
+train_data, test_data, model, opt = DSprites.setup(config_, iid=config_.dataset['iid'])
+for epoch in range(config_.model['epochs']):
+    DSprites.train(model, train_data, epoch, opt, writer=None, verbose=True, metrics_labels=config_.model['metrics_labels'])
 
-sample = next(iter(test_data))[0][0]
-plt.imshow(sample.view(64, 64), cmap='Greys')
-mu, _, mu_prime, _ = model.encode(sample.unsqueeze(dim=0).to(DEVICE))
+sample = next(iter(test_data))
+plt.figure()
+plt.imshow(sample[0][0].view(64, 64), cmap='Greys')
+mu, _, mu_prime, _ = model.encode(sample[0][0].unsqueeze(dim=0).to(DEVICE))
 z = torch.cat((mu, mu_prime), dim=1).detach().cpu()
 num_samples = 11
 results = []
@@ -56,9 +57,9 @@ for i in range(1, num_samples*config_.hparams['z_size']+1):
     # plt.axis('off')
 
 # another sample
-sample = next(iter(test_data))[0][0]
-plt.imshow(sample.view(64, 64), cmap='Greys')
-mu, _, mu_prime, _ = model.encode(sample.unsqueeze(dim=0).to(DEVICE))
+plt.figure()
+plt.imshow(sample[0][1].view(64, 64), cmap='Greys')
+mu, _, mu_prime, _ = model.encode(sample[0][1].unsqueeze(dim=0).to(DEVICE))
 z = torch.cat((mu, mu_prime), dim=1).detach().cpu()
 num_samples = 11
 results = []
@@ -79,9 +80,9 @@ for i in range(1, num_samples*config_.hparams['z_size']+1):
     plt.imshow(1-results[i-1], cmap='Greys')
     # plt.axis('off')
 
-sample = next(iter(test_data))[0][0]
-plt.imshow(sample.view(64, 64), cmap='Greys')
-mu, _, mu_prime, _ = model.encode(sample.unsqueeze(dim=0).to(DEVICE))
+plt.figure()
+plt.imshow(sample[0][2].view(64, 64), cmap='Greys')
+mu, _, mu_prime, _ = model.encode(sample[0][2].unsqueeze(dim=0).to(DEVICE))
 z = torch.cat((mu, mu_prime), dim=1).detach().cpu()
 num_samples = 11
 results = []
