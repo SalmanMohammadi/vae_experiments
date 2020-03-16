@@ -192,9 +192,9 @@ class FactorVAE(DSpritesVAE):
         x_ = torch.sigmoid(self.fc6(h4))
         return x_
 
-class FactorBernoulliVAE(DSpritesVAE):
+class EarlyFactorVAE(DSpritesVAE):
     def __str__(self):
-        return "FactorVAE"
+        return "EarlyFactorVAE"
 
     def __init__(self, z_size=6, classifier_size=1, include_loss=True, *args, **kwargs):
         z_size = z_size - classifier_size
@@ -246,19 +246,31 @@ class FactorBernoulliVAE(DSpritesVAE):
         elbo, losses = super().compute_loss(x, x_, mu, logvar)
 
         # KL divergence between z_prime and p
-        kl_loss = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
+        kl_prime = -0.5 * torch.sum(1 + logvar_prime - mu_prime.pow(2) - logvar_prime.exp())
+
+        # kl divergence between z_prime and z
+        z_ = dist.Normal(mu, logvar.exp().pow(1/2))
+        z_prime_ = dist.Normal(mu_prime, logvar_prime.exp().pow(1/2))
+        kl_latent = dist.kl.kl_divergence(z_prime_, z_).mean()
 
         # CE loss
         ce_loss = self.ce_loss(y_, y)
 
-        return elbo + kl_loss + ce_loss, losses + (kl_loss, ce_loss,)
+        return elbo + kl_prime + ce_loss - kl_latent, losses + (kl_prime, kl_latent, ce_loss,)
 
     def batch_forward(self, data, device=DEVICE):
         data, y = data
         data = data.to(device)
         y = y[:,2].to(device)
         x_, mu, logvar, mu_prime, logvar_prime, y_ = self(data)
-        return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime) 
+        return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime)
+    
+    def decode(self, z):
+        h3 = F.tanh(self.fc4(z))
+        h4 = F.tanh(self.fc5(h3))
+        x_ = torch.sigmoid(self.fc6(h4))
+        return x_
+
 
 def train(model, dataset, epoch, optimizer, device=DEVICE, verbose=True, writer=None, log_interval=100, metrics_labels=None):
     """
@@ -303,7 +315,7 @@ def train(model, dataset, epoch, optimizer, device=DEVICE, verbose=True, writer=
           epoch, train_loss / dataset_len))
         
 
-def test(model, dataset, verbose=True):
+def test(model, dataset, verbose=True, metrics_labels=None):
     """
     Evaluates the model
     """
@@ -321,7 +333,9 @@ def test(model, dataset, verbose=True):
     metrics_mean = np.sum(metrics_mean, axis=0)/len(dataset.dataset)
     # metrics = [x.item()/len(dataset.dataset) for x in metrics]
     if verbose:
-        print("Eval: ", test_loss, metrics_mean)
+        if metrics_labels:
+            print(", ".join(list(map(lambda x: "%s: %.5f" % x, zip(metrics_labels, metrics_mean)))))
+        print("Eval: ", test_loss)
     return test_loss, metrics_mean
 
 def get_dsprites(config, dataset=None):

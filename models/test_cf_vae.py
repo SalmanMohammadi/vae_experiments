@@ -10,7 +10,7 @@ config_ = DSprites.Config(
     # dataset
     dataset={
         'iid': True,
-        'train_size': 300000,
+        'train_size': 500000,
         'test_size': 10000
     },
     #model
@@ -31,6 +31,8 @@ config_ = DSprites.Config(
 train_data, test_data, model, opt = DSprites.setup(config_, iid=config_.dataset['iid'])
 for epoch in range(config_.model['epochs']):
     DSprites.train(model, train_data, epoch, opt, writer=None, verbose=True, metrics_labels=config_.model['metrics_labels'])
+
+DSprites.test(model, test_data, verbose=True,  metrics_labels=config_.model['metrics_labels'])
 
 sample = next(iter(test_data))
 plt.figure()
