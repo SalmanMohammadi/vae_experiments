@@ -45,8 +45,8 @@ class DSpritesVAE(nn.Module):
         return mu, logvar
 
     def decode(self, z):
-        h3 = F.relu(self.fc4(z))
-        h4 = F.relu(self.fc5(h3))
+        h3 = F.tanh(self.fc4(z))
+        h4 = F.tanh(self.fc5(h3))
         x_ = torch.sigmoid(self.fc6(h4))
         return x_
 
@@ -68,7 +68,7 @@ class DSpritesVAE(nn.Module):
 
         return r_loss + kl_loss, (r_loss, kl_loss)
 
-    def batch_forward(self, data):
+    def batch_forward(self, data, device=DEVICE):
         data, _ = data
         data = data.to(DEVICE)
         x_, mu, logvar = self(data)
@@ -115,9 +115,9 @@ class RegDSpritesVAE(DSpritesVAE):
 
 class FactorVAE(DSpritesVAE):
     def __str__(self):
-        return "FactorVAE"
+        return "ISVAE"
 
-    def __init__(self, z_size=6, classifier_size=1, include_loss=True, *args, **kwargs):
+    def __init__(self, z_size=6, classifier_size=1, include_loss=True, gamma=1, *args, **kwargs):
         z_size = z_size - classifier_size
         super(FactorVAE, self).__init__()
         self.z_size = z_size
@@ -140,6 +140,7 @@ class FactorVAE(DSpritesVAE):
         self.fc7 = nn.Linear(self.classifier_size, 6)
 
         self.ce_loss = nn.CrossEntropyLoss()
+        self.gamma = gamma
 
     def predict_latent(self, z_prime):
         return self.fc7(z_prime)
@@ -172,7 +173,7 @@ class FactorVAE(DSpritesVAE):
         # kl divergence between z_prime and z
         z_ = dist.Normal(mu, logvar.exp().pow(1/2))
         z_prime_ = dist.Normal(mu_prime, logvar_prime.exp().pow(1/2))
-        kl_latent = dist.kl.kl_divergence(z_prime_, z_).mean()
+        kl_latent = self.gamma * dist.kl.kl_divergence(z_prime_, z_).mean()
 
         # CE loss
         ce_loss = self.ce_loss(y_, y)
@@ -194,11 +195,11 @@ class FactorVAE(DSpritesVAE):
 
 class EarlyFactorVAE(DSpritesVAE):
     def __str__(self):
-        return "EarlyFactorVAE"
+        return "LISVAE"
 
-    def __init__(self, z_size=6, classifier_size=1, include_loss=True, *args, **kwargs):
+    def __init__(self, z_size=6, classifier_size=1, include_loss=True, gamma=1, *args, **kwargs):
         z_size = z_size - classifier_size
-        super(FactorVAE, self).__init__()
+        super(EarlyFactorVAE, self).__init__()
         self.z_size = z_size
         self.fc1 = nn.Linear(4096, 1200)
         self.fc2 = nn.Linear(1200, z_size) # mu
@@ -213,20 +214,23 @@ class EarlyFactorVAE(DSpritesVAE):
         self.include_loss = include_loss
         self.classifier_size = classifier_size
 
-        self.z_prime_mu = nn.Linear(1200, classifier_size) # mu
-        self.z_prime_logvar = nn.Linear(1200, classifier_size) # logvar
+        self.fc_prime = nn.Linear(4096, 1200)
+        self.z_prime_mu = nn.Linear(1200, classifier_size) 
+        self.z_prime_logvar = nn.Linear(1200, classifier_size) 
 
         self.fc7 = nn.Linear(self.classifier_size, 6)
 
         self.ce_loss = nn.CrossEntropyLoss()
+        self.gamma = gamma
 
     def predict_latent(self, z_prime):
         return self.fc7(z_prime)
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
+        h1_prime = F.relu(self.fc_prime(x))
         mu, logvar = self.fc2(h1), self.fc3(h1)
-        mu_prime, logvar_prime = self.z_prime_mu(h1), self.z_prime_logvar(h1)
+        mu_prime, logvar_prime = self.z_prime_mu(h1_prime), self.z_prime_logvar(h1_prime)
         return mu, logvar, mu_prime, logvar_prime
 
     def sample(self, mu, logvar, mu_prime, logvar_prime):
@@ -251,7 +255,7 @@ class EarlyFactorVAE(DSpritesVAE):
         # kl divergence between z_prime and z
         z_ = dist.Normal(mu, logvar.exp().pow(1/2))
         z_prime_ = dist.Normal(mu_prime, logvar_prime.exp().pow(1/2))
-        kl_latent = dist.kl.kl_divergence(z_prime_, z_).mean()
+        kl_latent = self.gamma * dist.kl.kl_divergence(z_prime_, z_).mean()
 
         # CE loss
         ce_loss = self.ce_loss(y_, y)
@@ -304,18 +308,14 @@ def train(model, dataset, epoch, optimizer, device=DEVICE, verbose=True, writer=
 
     if writer:
         writer.add_scalar('train/loss', train_loss /dataset_len, epoch)
-        for label, metric in zip(['r_loss', 'kl_loss', 'mse'], metrics_mean):
+        for label, metric in zip(metrics_labels, metrics_mean):
             writer.add_scalar('train/'+label, metric, epoch)
-        if len(metrics_mean) > 2:
-            scaled_mse = np.sqrt(metrics_mean[-1])*45
-            writer.add_scalar('train/scaled_mse', scaled_mse, epoch)
-            writer.flush()
     if verbose:
         print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / dataset_len))
         
 
-def test(model, dataset, verbose=True, metrics_labels=None):
+def test(model, dataset, verbose=True, metrics_labels=None, writer=None):
     """
     Evaluates the model
     """
@@ -336,6 +336,10 @@ def test(model, dataset, verbose=True, metrics_labels=None):
         if metrics_labels:
             print(", ".join(list(map(lambda x: "%s: %.5f" % x, zip(metrics_labels, metrics_mean)))))
         print("Eval: ", test_loss)
+    if writer:
+        writer.add_scalar('test/loss', test_loss)
+        for label, metric in zip(metrics_labels, metrics_mean):
+            writer.add_scalar('test/'+label, metric)
     return test_loss, metrics_mean
 
 def get_dsprites(config, dataset=None):
@@ -402,7 +406,6 @@ if __name__ == "__main__":
     # for epoch in range(config_.model['epochs']):
     #     train(model, train_data, epoch, opt, writer=None, verbose=True)
     print(test(model, test_data, verbose=False))
-
     # View some predicitions from the model
 
     with torch.no_grad():
