@@ -22,6 +22,7 @@ parser.add_argument("--model", type=str)
 parser.add_argument("--experiment_id", type=int, default=0)
 parser.add_argument("--experiment_name", type=str, default='')
 parser.add_argument("--hparams", type=hparams_to_dict, default='')
+parser.add_argument("--logging", type=str)
 args = parser.parse_args()
 
 experiment_id = '/' + str(args.experiment_id)
@@ -32,7 +33,7 @@ model_path = 'tmp/' + args.model + experiment_name + experiment_id
 config = config_mappings[args.model]
 config = config._replace(hparams={**config.hparams, **args.hparams})
 
-print(config)
+print(config, model_path)
 train_data, test_data, model, opt = DSprites.setup(config, iid=config.dataset['iid'])
 writer = SummaryWriter(log_dir=model_path)
 for epoch in range(config.model['epochs']):

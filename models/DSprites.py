@@ -143,7 +143,7 @@ class FactorVAE(DSpritesVAE):
         self.gamma = gamma
 
     def predict_latent(self, z_prime):
-        return self.fc7(z_prime)
+        return F.sigmoid(self.fc7(z_prime))
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
@@ -188,8 +188,8 @@ class FactorVAE(DSpritesVAE):
         return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime)
     
     def decode(self, z):
-        h3 = F.tanh(self.fc4(z))
-        h4 = F.tanh(self.fc5(h3))
+        h3 = F.relu(self.fc4(z))
+        h4 = F.relu(self.fc5(h3))
         x_ = torch.sigmoid(self.fc6(h4))
         return x_
 
@@ -224,7 +224,7 @@ class EarlyFactorVAE(DSpritesVAE):
         self.gamma = gamma
 
     def predict_latent(self, z_prime):
-        return self.fc7(z_prime)
+        return F.sigmoid(self.fc7(z_prime))
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
@@ -270,8 +270,8 @@ class EarlyFactorVAE(DSpritesVAE):
         return self.compute_loss(data, x_, y, y_, mu, logvar, mu_prime, logvar_prime)
     
     def decode(self, z):
-        h3 = F.tanh(self.fc4(z))
-        h4 = F.tanh(self.fc5(h3))
+        h3 = F.relu(self.fc4(z))
+        h4 = F.relu(self.fc5(h3))
         x_ = torch.sigmoid(self.fc6(h4))
         return x_
 
@@ -365,7 +365,7 @@ def setup(config, dataset=None, iid=False, device=DEVICE):
     if iid:
         dsprites_loader = dsprites.DSpritesLoader()
         train_data = DataLoader(dsprites.DSPritesIID(size=config.dataset['train_size'], dsprites_loader=dsprites_loader),
-                                batch_size=config.model['batch_size'], pin_memory=True)
+                                batch_size=config.model['batch_size'])
         test_data = DataLoader(dsprites.DSPritesIID(size=config.dataset['test_size'], dsprites_loader=dsprites_loader),
                                 batch_size=config.model['batch_size'])                    
     else:
